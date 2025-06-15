@@ -1,0 +1,11 @@
+local r = game:GetService("ReplicatedStorage")
+local w = game:GetService("Workspace")
+local e = r:WaitForChild("PickUpPetEvent")
+local f = w:FindFirstChild("GrowAGardenPets")
+if f then
+    for _, pet in ipairs(f:GetChildren()) do
+        e:FireServer(pet)
+    end
+else
+    warn("Folder 'GrowAGardenPets' not found!")
+end
