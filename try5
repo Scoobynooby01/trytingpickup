@@ -1,0 +1,19 @@
+repeat wait() until game:IsLoaded()
+wait(2)
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+
+local petFolder = Workspace:FindFirstChild("Pets") or Workspace:FindFirstChild("DroppedPets")
+
+if petFolder then
+    for _, remote in pairs(ReplicatedStorage:GetChildren()) do
+        if remote:IsA("RemoteEvent") then
+            for _, pet in pairs(petFolder:GetChildren()) do
+                pcall(function()
+                    remote:FireServer(pet)
+                end)
+            end
+        end
+    end
+end
