@@ -1,0 +1,24 @@
+-- Get required services
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+
+-- Locate the remote event
+local pickUpPetEvent = ReplicatedStorage:WaitForChild("PickUpPetEvent") -- Replace with your actual event name
+
+-- Define a function to pick up all pets
+local function pickUpAllPets()
+    local petsFolder = Workspace:FindFirstChild("GrowAGardenPets")  -- Replace with the container holding your pets
+    if petsFolder then
+        for _, pet in ipairs(petsFolder:GetChildren()) do
+            -- Fire the remote event for each pet
+            pickUpPetEvent:FireServer(pet)
+        end
+    else
+        warn("No GrowAGardenPets folder found in Workspace!")
+    end
+end
+
+-- Hook up your UI button to call the function
+-- For example, if you have a TextButton instance in your ScreenGui:
+local button = script.Parent  -- adjust the path to your button if needed
+button.MouseButton1Click:Connect(pickUpAllPets)
