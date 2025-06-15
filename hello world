@@ -1,0 +1,23 @@
+
+Here's a Roblox Lua script that teleports you to another server and prints "hello world" to the console:
+
+
+Roblox Server Teleport Script
+Code 
+This script uses TeleportService to move you to another server of the same game, then prints "hello world" to the console. The teleport happens first, and the print statement will execute in the new server after you're teleported.
+
+
+
+
+
+
+
+local TeleportService = game:GetService("TeleportService")
+local Players = game:GetService("Players")
+
+local player = Players.LocalPlayer
+local placeId = game.PlaceId
+
+TeleportService:Teleport(placeId, player)
+
+print("hello world")
