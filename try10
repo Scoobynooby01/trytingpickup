@@ -1,0 +1,31 @@
+local function pickUpPets()
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    local Workspace = game:GetService("Workspace")
+    
+    local remote = ReplicatedStorage:FindFirstChild("PickUpPetEvent")
+    if not remote then
+        warn("Remote event 'PickUpPetEvent' not found!")
+        return
+    end
+
+    local petsFolder = Workspace:FindFirstChild("GrowAGardenPets")
+    if not petsFolder then
+        warn("Folder 'GrowAGardenPets' not found in Workspace!")
+        return
+    end
+
+    for _, pet in ipairs(petsFolder:GetChildren()) do
+        local ok, err = pcall(function()
+            remote:FireServer(pet)
+        end)
+        if not ok then
+            warn("Error picking up pet " .. pet.Name .. ": " .. tostring(err))
+        else
+            print("Picked up pet: " .. pet.Name)
+        end
+    end
+
+    print("Finished picking up all pets.")
+end
+
+pickUpPets()
