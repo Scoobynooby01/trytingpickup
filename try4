@@ -1,0 +1,74 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+
+-- Debug: Print all RemoteEvents to find the correct one
+print("=== DEBUG: All RemoteEvents ===")
+for _, v in pairs(ReplicatedStorage:GetDescendants()) do
+    if v:IsA("RemoteEvent") then
+        print("RemoteEvent found:", v.Name, "Parent:", v.Parent.Name)
+    end
+end
+
+-- Debug: Print workspace structure to find pets
+print("=== DEBUG: Workspace Children ===")
+for _, v in pairs(Workspace:GetChildren()) do
+    if v:IsA("Folder") or v:IsA("Model") then
+        print("Folder/Model:", v.Name)
+    end
+end
+
+-- Look for pets in all possible locations
+local function findAllPets()
+    local pets = {}
+    
+    -- Check workspace directly
+    for _, item in pairs(Workspace:GetChildren()) do
+        if item:IsA("Model") and (item.Name:lower():find("pet") or item.Name:lower():find("drop")) then
+            table.insert(pets, item)
+        end
+    end
+    
+    -- Check common folder names
+    local folders = {"Pets", "DroppedPets", "Items", "Drops", "Collectibles", "PetDrops"}
+    for _, folderName in pairs(folders) do
+        local folder = Workspace:FindFirstChild(folderName)
+        if folder then
+            for _, item in pairs(folder:GetChildren()) do
+                table.insert(pets, item)
+            end
+        end
+    end
+    
+    return pets
+end
+
+-- Try all possible remote names
+local function tryPickup(pets)
+    local remoteNames = {
+        "PickupPet", "CollectPet", "Pickup", "Collect", "ClaimPet", 
+        "PickupItem", "CollectItem", "PickupDrop", "CollectDrop",
+        "PetPickup", "ItemPickup", "DropPickup", "Claim"
+    }
+    
+    for _, remoteName in pairs(remoteNames) do
+        local remote = ReplicatedStorage:FindFirstChild(remoteName)
+        if remote and remote:IsA("RemoteEvent") then
+            print("Using remote:", remoteName)
+            for _, pet in pairs(pets) do
+                pcall(function()
+                    remote:FireServer(pet)
+                end)
+            end
+        end
+    end
+end
+
+-- Execute
+local pets = findAllPets()
+print("Found pets:", #pets)
+for i, pet in pairs(pets) do
+    print(i, pet.Name, pet.ClassName)
+end
+
+tryPickup(pets)
+print("Pickup attempted")
