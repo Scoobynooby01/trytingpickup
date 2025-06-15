@@ -1,0 +1,41 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+
+local function getAllPets()
+    local pets = {}
+    local locations = {Workspace, Workspace:FindFirstChild("Pets"), Workspace:FindFirstChild("DroppedPets"), Workspace:FindFirstChild("Items")}
+    
+    for _, location in pairs(locations) do
+        if location then
+            for _, item in pairs(location:GetChildren()) do
+                table.insert(pets, item)
+            end
+        end
+    end
+    
+    return pets
+end
+
+local function pickup()
+    local pets = getAllPets()
+    local remotes = {"PickupPet", "CollectPet", "Pickup", "Collect"}
+    
+    for _, remoteName in pairs(remotes) do
+        local remote = ReplicatedStorage:FindFirstChild(remoteName)
+        if remote and remote:IsA("RemoteEvent") then
+            for _, pet in pairs(pets) do
+                pcall(function() remote:FireServer(pet) end)
+            end
+        end
+    end
+    
+    for _, pet in pairs(pets) do
+        local cd = pet:FindFirstChildOfClass("ClickDetector")
+        if cd then pcall(function() fireclickdetector(cd) end) end
+        
+        local pp = pet:FindFirstChildOfClass("ProximityPrompt")
+        if pp then pcall(function() fireproximityprompt(pp) end) end
+    end
+end
+
+pickup()
