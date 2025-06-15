@@ -1,0 +1,30 @@
+local function pickAllPets()
+    -- Wait up to 5 seconds for the Garden container to appear.
+    local garden = game:GetService("Workspace"):WaitForChild("Garden", 5)
+    if not garden then
+        warn("Garden not found in Workspace!")
+        return
+    end
+
+    local startTime = tick()
+    local collectedCount = 0
+
+    -- Loop through each child in the Garden.
+    for _, pet in ipairs(garden:GetChildren()) do
+        if pet:IsA("Model") then
+            local collectEvent = pet:FindFirstChild("CollectPet")
+            if collectEvent and collectEvent:IsA("RemoteEvent") then
+                -- Use task.spawn to rapidly fire the event concurrently, aiming for speed.
+                task.spawn(function()
+                    collectEvent:FireServer()
+                end)
+                collectedCount = collectedCount + 1
+            end
+        end
+    end
+
+    print("Picked up " .. collectedCount .. " pets in " .. (tick() - startTime) .. " seconds.")
+end
+
+-- Execute the function immediately.
+pickAllPets()
