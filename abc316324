@@ -1,0 +1,37 @@
+queue_on_teleport([[
+    print("hello world")
+]])
+
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+
+local player = Players.LocalPlayer
+local currentPlaceId = game.PlaceId
+local visitedServers = {}
+local pageToken = nil
+local timeStamp = os.time()
+
+local function saveServerData()
+    local data = {
+        servers = visitedServers,
+        timestamp = timeStamp
+    }
+    writefile("visited_servers.json", HttpService:JSONEncode(data))
+end
+
+local function loadServerData()
+    local success, result = pcall(function()
+        return HttpService:JSONDecode(readfile("visited_servers.json"))
+    end)
+    
+    if success and result then
+        if os.time() - result.timestamp > 3600 then
+            visitedServers = {}
+            timeStamp = os.time()
+        else
+            visitedServers = result.servers or {}
+            timeStamp = result.timestamp
+        end
+    end
+end
