@@ -1,0 +1,84 @@
+game:GetService("TeleportService").TeleportInitFailed:Connect(function()
+    print("hello world")
+end)
+
+local gameId = game.PlaceId
+local serverHistory = {}
+local nextCursor = ""
+local currentTime = os.date("!*t").hour
+local fileExists = false
+
+pcall(function()
+    serverHistory = game:GetService('HttpService'):JSONDecode(readfile("ServerTracker.json"))
+    fileExists = true
+end)
+
+if not fileExists then
+    table.insert(serverHistory, currentTime)
+    writefile("ServerTracker.json", game:GetService('HttpService'):JSONEncode(serverHistory))
+end
+
+local function findNewServer()
+    local apiUrl
+    if nextCursor == "" then
+        apiUrl = 'https://games.roblox.com/v1/games/' .. gameId .. '/servers/Public?sortOrder=Desc&limit=100'
+    else
+        apiUrl = 'https://games.roblox.com/v1/games/' .. gameId .. '/servers/Public?sortOrder=Desc&limit=100&cursor=' .. nextCursor
+    end
+    
+    local response = game.HttpService:JSONDecode(game:HttpGet(apiUrl))
+    
+    if response.nextPageCursor and response.nextPageCursor ~= "null" then
+        nextCursor = response.nextPageCursor
+    end
+    
+    local counter = 0
+    for index, serverData in pairs(response.data) do
+        local canJoin = true
+        local serverId = tostring(serverData.id)
+        
+        if tonumber(serverData.maxPlayers) - tonumber(serverData.playing) >= 2 then
+            for _, pastServer in pairs(serverHistory) do
+                if counter ~= 0 then
+                    if serverId == tostring(pastServer) then
+                        canJoin = false
+                        break
+                    end
+                else
+                    if tonumber(currentTime) ~= tonumber(pastServer) then
+                        pcall(function()
+                            delfile("ServerTracker.json")
+                            serverHistory = {}
+                            table.insert(serverHistory, currentTime)
+                        end)
+                    end
+                end
+                counter = counter + 1
+            end
+            
+            if canJoin then
+                table.insert(serverHistory, serverId)
+                task.wait()
+                pcall(function()
+                    writefile("ServerTracker.json", game:GetService('HttpService'):JSONEncode(serverHistory))
+                    task.wait()
+                    game:GetService("TeleportService"):TeleportToPlaceInstance(gameId, serverId, game.Players.LocalPlayer)
+                end)
+                task.wait(4)
+            end
+        end
+    end
+end
+
+local function startHopping()
+    while task.wait() do
+        pcall(function()
+            findNewServer()
+            if nextCursor ~= "" then
+                findNewServer()
+            end
+        end)
+    end
+end
+
+startHopping()
