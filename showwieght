@@ -1,0 +1,105 @@
+-- Deep‐Search Fruit Info (Weight & Price)
+-- Shows the actual values (not N/A) by checking many places.
+
+local Players       = game:GetService("Players")
+local Replicated    = game:GetService("ReplicatedStorage")
+local RunService    = game:GetService("RunService")
+
+local player  = Players.LocalPlayer
+local mouse   = player:GetMouse()
+
+-- 1) Try to load a central data table from ReplicatedStorage
+local fruitData
+do
+    local names = {
+        "FruitData","CropRegistry","CropsData",
+        "ProduceData","CropStats","PlantData","ItemData"
+    }
+    for _, nm in ipairs(names) do
+        local mod = Replicated:FindFirstChild(nm)
+                 or (Replicated:FindFirstChild("Modules") and Replicated.Modules:FindFirstChild(nm))
+        if mod and mod:IsA("ModuleScript") then
+            local ok, tbl = pcall(require, mod)
+            if ok and type(tbl)=="table" then
+                fruitData = tbl
+                break
+            end
+        end
+    end
+end
+
+-- 2) Build UI
+local gui = Instance.new("ScreenGui")
+gui.Name   = "FruitInfoGui"
+gui.Parent = player:WaitForChild("PlayerGui")
+gui.ResetOnSpawn = false
+
+local lbl = Instance.new("TextLabel")
+lbl.Size               = UDim2.new(0, 220, 0, 60)
+lbl.BackgroundColor3   = Color3.fromRGB(0, 0, 0)
+lbl.BackgroundTransparency = 0.5
+lbl.TextColor3         = Color3.new(1, 1, 1)
+lbl.Font               = Enum.Font.GothamBold
+lbl.TextSize           = 18
+lbl.TextWrapped        = true
+lbl.Visible            = false
+lbl.Parent             = gui
+
+-- 3) Helper: get info from many sources
+local function getFruitInfo(model)
+    local info = {}
+
+    -- a) global data table
+    if fruitData and fruitData[model.Name] then
+        info.Price  = fruitData[model.Name].Price
+        info.Weight = fruitData[model.Name].Weight
+        return info
+    end
+
+    -- b) root attributes
+    for _, key in ipairs({"Price","SellPrice","Value"}) do
+        local v = model:GetAttribute(key)
+        if type(v)=="number" then info.Price=v; break end
+    end
+    for _, key in ipairs({"Weight","WeightKg","Mass"}) do
+        local w = model:GetAttribute(key)
+        if type(w)=="number" then info.Weight=w; break end
+    end
+
+    -- c) NumberValue / IntValue descendants
+    for _, desc in ipairs(model:GetDescendants()) do
+        if desc:IsA("NumberValue") or desc:IsA("IntValue") then
+            local n = desc.Name:lower()
+            if not info.Price and n:find("price") then
+                info.Price = desc.Value
+            elseif not info.Weight and n:find("weight") then
+                info.Weight = desc.Value
+            end
+            if info.Price and info.Weight then break end
+        end
+    end
+
+    return info
+end
+
+-- 4) Main: hover detection
+RunService.RenderStepped:Connect(function()
+    local t = mouse.Target
+    if not t then lbl.Visible = false return end
+
+    local mdl = t:FindFirstAncestorWhichIsA("Model")
+    if not mdl then lbl.Visible = false return end
+
+    local info = getFruitInfo(mdl)
+    if not (info.Price or info.Weight) then
+        lbl.Visible = false
+        return
+    end
+
+    -- Build display text
+    local priceTxt  = info.Price  and tostring(info.Price)  or "N/A"
+    local weightTxt = info.Weight and tostring(info.Weight) or "N/A"
+    lbl.Text = string.format("%s\n💰 Price: %s\n⚖️ Weight: %s kg", mdl.Name, priceTxt, weightTxt)
+    lbl.Position = UDim2.new(0, mouse.X+15, 0, mouse.Y+15)
+    lbl.Visible  = true
+end)
