@@ -1,0 +1,121 @@
+local Players       = game:GetService("Players")
+local Replicated    = game:GetService("ReplicatedStorage")
+local RunService    = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local mouse  = player:GetMouse()
+
+-- auto-detect global crop data table
+local cropStats
+local function tryTable(tbl)
+    if type(tbl)~="table" then return false end
+    local key = next(tbl)
+    if type(key)=="string" and type(tbl[key])=="table" then
+        local sample = tbl[key]
+        return (type(sample.Price)=="number" and type(sample.Weight)=="number")
+    end
+    return false
+end
+
+for _, mod in ipairs(Replicated:GetDescendants()) do
+    if mod:IsA("ModuleScript") then
+        local ok, ret = pcall(require, mod)
+        if ok then
+            if tryTable(ret) then
+                cropStats = ret
+                break
+            end
+            if type(ret.Data)=="table" and tryTable(ret.Data) then
+                cropStats = ret.Data
+                break
+            end
+        end
+    end
+end
+
+local gui = Instance.new("ScreenGui")
+gui.Name         = "FruitInfoGui"
+gui.ResetOnSpawn = false
+gui.Parent       = player:WaitForChild("PlayerGui")
+
+local label = Instance.new("TextLabel", gui)
+label.Size               = UDim2.new(0, 220, 0, 60)
+label.BackgroundColor3   = Color3.fromRGB(0, 0, 0)
+label.BackgroundTransparency = 0.5
+label.TextColor3         = Color3.new(1,1,1)
+label.Font               = Enum.Font.GothamBold
+label.TextSize           = 18
+label.TextWrapped        = true
+label.Visible            = false
+
+local function isPicked(model)
+    if model:GetAttribute("Picked") or model:GetAttribute("Harvested") then
+        return true
+    end
+    for _, c in ipairs(model:GetChildren()) do
+        if c:IsA("BoolValue") and (c.Name:lower():find("pick") or c.Name:lower():find("harvest")) and c.Value then
+            return true
+        end
+    end
+    return false
+end
+
+local function getInfo(model)
+    local info = {}
+
+    if cropStats then
+        local entry = cropStats[model.Name]
+                   or cropStats[model.Name:lower()]
+                   or cropStats[model.Name:gsub("%s","")]
+        if type(entry)=="table" then
+            info.Price  = entry.Price
+            info.Weight = entry.Weight
+            return info
+        end
+    end
+
+    for _, key in ipairs({"Price","SellPrice","Value"}) do
+        local v = model:GetAttribute(key)
+        if type(v)=="number" then info.Price = v; break end
+    end
+    for _, key in ipairs({"Weight","WeightKg","Mass"}) do
+        local w = model:GetAttribute(key)
+        if type(w)=="number" then info.Weight = w; break end
+    end
+
+    for _, desc in ipairs(model:GetDescendants()) do
+        if desc:IsA("NumberValue") or desc:IsA("IntValue") then
+            local n = desc.Name:lower()
+            if not info.Price  and n:find("price")  then info.Price  = desc.Value end
+            if not info.Weight and n:find("weight") then info.Weight = desc.Value end
+            if info.Price and info.Weight then break end
+        end
+    end
+
+    return info
+end
+
+RunService.RenderStepped:Connect(function()
+    local part = mouse.Target
+    if not part then label.Visible = false return end
+
+    local model = part:FindFirstAncestorWhichIsA("Model")
+    if not model or isPicked(model) then
+        label.Visible = false
+        return
+    end
+
+    local info = getInfo(model)
+    if not (info.Price or info.Weight) then
+        label.Visible = false
+        return
+    end
+
+    local txt = model.Name
+    if info.Price  then txt = txt.."\n💰 Price: "..tostring(info.Price) end
+    if info.Weight then txt = txt.."\n⚖️ Weight: "..tostring(info.Weight).." kg" end
+
+    label.Text     = txt
+    label.Position = UDim2.new(0, mouse.X + 12, 0, mouse.Y + 12)
+    label.Visible  = true
+end)
