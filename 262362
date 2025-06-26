@@ -1,0 +1,118 @@
+-- Grow A Garden: Fruit Info (Unpicked Only)
+-- Place this in StarterPlayerScripts or StarterGui
+
+local Players       = game:GetService("Players")
+local Replicated    = game:GetService("ReplicatedStorage")
+local RunService    = game:GetService("RunService")
+
+local player  = Players.LocalPlayer
+local mouse   = player:GetMouse()
+
+-- Attempt to load a central data table (optional)
+local fruitData
+do
+    local names = { "FruitData", "CropRegistry", "CropsData" }
+    for _, name in ipairs(names) do4262
+        local mod = Replicated:FindFirstChild(name)
+                 or (Replicated:FindFirstChild("Modules") and Replicated.Modules:FindFirstChild(name))
+        if mod and mod:IsA("ModuleScript") then
+            local ok, tbl = pcall(require, mod)
+            if ok and type(tbl) == "table" then
+                fruitData = tbl
+                break
+            end
+        end
+    end
+end
+
+-- UI setup
+local gui = Instance.new("ScreenGui")
+gui.Name   = "FruitInfoGui"
+gui.Parent = player:WaitForChild("PlayerGui")
+gui.ResetOnSpawn = false
+
+local label = Instance.new("TextLabel")
+label.Size               = UDim2.new(0, 200, 0, 50)
+label.BackgroundColor3   = Color3.fromRGB(0, 0, 0)
+label.BackgroundTransparency = 0.4
+label.TextColor3         = Color3.new(1, 1, 1)
+label.Font               = Enum.Font.GothamBold
+label.TextSize           = 18
+label.TextWrapped        = true
+label.Visible            = false
+label.Parent             = gui
+
+-- Helper: detect if a fruit model has been picked
+local function isPicked(model)
+    -- check Attribute
+    if model:GetAttribute("Picked") == true
+    or model:GetAttribute("Harvested") == true then
+        return true
+    end
+    -- check BoolValue children
+    for _, child in ipairs(model:GetChildren()) do
+        if (child.Name == "Picked" or child.Name == "Harvested")
+        and child:IsA("BoolValue")
+        and child.Value == true then
+            return true
+        end
+    end
+    return false
+end
+
+-- Helper: gather price & weight
+local function getFruitInfo(model)
+    local info = {}
+    -- try global table
+    if fruitData and fruitData[model.Name] then
+        local ent = fruitData[model.Name]
+        info.Price  = ent.Price
+        info.Weight = ent.Weight
+        return info
+    end
+    -- fallback to Attributes or NumberValues
+    if model:GetAttribute("Price") then
+        info.Price = model:GetAttribute("Price")
+    elseif model:FindFirstChild("Price") and model.Price:IsA("NumberValue") then
+        info.Price = model.Price.Value
+    end
+    if model:GetAttribute("WeightKg") then
+        info.Weight = model:GetAttribute("WeightKg")
+    elseif model:FindFirstChild("Weight") and model.Weight:IsA("NumberValue") then
+        info.Weight = model.Weight.Value
+    end
+    return info
+end
+
+-- Main loop
+RunService.RenderStepped:Connect(function()
+    local target = mouse.Target
+    if not target then
+        label.Visible = false
+        return
+    end
+
+    -- find top-level Model
+    local mdl = target:FindFirstAncestorWhichIsA("Model")
+    if not mdl or isPicked(mdl) then
+        label.Visible = false
+        return
+    end
+
+    -- get info
+    local info = getFruitInfo(mdl)
+    if not (info.Price or info.Weight) then
+        label.Visible = false
+        return
+    end
+
+    -- show UI
+    label.Text = string.format(
+        "%s\n💰 %s coins\n⚖️ %s kg",
+        mdl.Name,
+        info.Price  and tostring(info.Price)  or "N/A",
+        info.Weight and tostring(info.Weight) or "N/A"
+    )
+    label.Position = UDim2.new(0, mouse.X + 12, 0, mouse.Y + 12)
+    label.Visible = true
+end)
