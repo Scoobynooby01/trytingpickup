@@ -1,0 +1,131 @@
+-- Auto-Detect Fruit Price & Weight (Grow A Garden)
+-- Place in StarterPlayerScripts as a LocalScript
+
+local Players          = game:GetService("Players")
+local ReplicatedStore = game:GetService("ReplicatedStorage")
+local RunService       = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local mouse  = player:GetMouse()
+
+-- 1) Auto-find the true data table
+local fruitData
+local function containsStats(tbl)
+    for _, v in pairs(tbl) do
+        if type(v) == "table" and tonumber(v.Price) and tonumber(v.Weight) then
+            return true
+        end
+    end
+end
+
+for _, mod in ipairs(ReplicatedStore:GetDescendants()) do
+    if mod:IsA("ModuleScript") then
+        local ok, ret = pcall(require, mod)
+        if ok and type(ret) == "table" then
+            if containsStats(ret) then
+                fruitData = ret
+                print("[FruitInfo] Using stats from:", mod:GetFullName())
+                break
+            end
+            -- Some modules wrap their table in a .Data key
+            if type(ret.Data) == "table" and containsStats(ret.Data) then
+                fruitData = ret.Data
+                print("[FruitInfo] Using stats from:", mod:GetFullName() .. ".Data")
+                break
+            end
+        end
+    end
+end
+
+-- 2) Build the UI
+local screenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+screenGui.Name = "FruitInfoGui"
+screenGui.ResetOnSpawn = false
+
+local label = Instance.new("TextLabel", screenGui)
+label.Size               = UDim2.new(0, 220, 0, 60)
+label.BackgroundColor3   = Color3.fromRGB(0, 0, 0)
+label.BackgroundTransparency = 0.5
+label.TextColor3         = Color3.new(1, 1, 1)
+label.Font               = Enum.Font.GothamBold
+label.TextSize           = 18
+label.TextWrapped        = true
+label.Visible            = false
+
+-- 3) Helpers
+local function isPicked(model)
+    if model:GetAttribute("Picked") or model:GetAttribute("Harvested") then
+        return true
+    end
+    for _, ch in ipairs(model:GetChildren()) do
+        if ch:IsA("BoolValue") and (ch.Name == "Picked" or ch.Name == "Harvested") and ch.Value then
+            return true
+        end
+    end
+    return false
+end
+
+local function fallbackInfo(model)
+    local price, weight
+    -- Attributes
+    for _, key in ipairs({"Price","SellPrice","Value"}) do
+        local v = model:GetAttribute(key)
+        if type(v) == "number" then price = v; break end
+    end
+    for _, key in ipairs({"Weight","WeightKg","Mass"}) do
+        local w = model:GetAttribute(key)
+        if type(w) == "number" then weight = w; break end
+    end
+    -- NumberValue/IntValue children
+    for _, d in ipairs(model:GetDescendants()) do
+        if (d:IsA("NumberValue") or d:IsA("IntValue")) then
+            local nm = d.Name:lower()
+            if not price  and nm:find("price")  then price  = d.Value end
+            if not weight and nm:find("weight") then weight = d.Value end
+        end
+    end
+    return price, weight
+end
+
+-- 4) Main loop
+RunService.RenderStepped:Connect(function()
+    local part = mouse.Target
+    if not part then
+        label.Visible = false
+        return
+    end
+
+    local mdl = part:FindFirstAncestorWhichIsA("Model")
+    if not mdl or isPicked(mdl) then
+        label.Visible = false
+        return
+    end
+
+    -- Try the auto-detected table first
+    local price, weight
+    if fruitData then
+        local entry = fruitData[mdl.Name] or fruitData[mdl.Name:lower()]
+        if type(entry) == "table" then
+            price, weight = entry.Price, entry.Weight
+        end
+    end
+
+    -- Fallback if needed
+    if not price and not weight then
+        price, weight = fallbackInfo(mdl)
+    end
+
+    if not price and not weight then
+        label.Visible = false
+        return
+    end
+
+    label.Text = string.format(
+        "%s\n💰 Price: %s\n⚖️ Weight: %s kg",
+        mdl.Name,
+        price  and tostring(price)  or "N/A",
+        weight and tostring(weight) or "N/A"
+    )
+    label.Position = UDim2.new(0, mouse.X + 15, 0, mouse.Y + 15)
+    label.Visible = true
+end)
