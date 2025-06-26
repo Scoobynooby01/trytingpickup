@@ -1,0 +1,107 @@
+-- Fruit Info Viewer for Grow A Garden
+-- Shows weight (kg) and price on hover, using either a central data module or per-model attributes/values.
+
+local Players       = game:GetService("Players")
+local Replicated    = game:GetService("ReplicatedStorage")
+local RunService    = game:GetService("RunService")
+
+local player  = Players.LocalPlayer
+local mouse   = player:GetMouse()
+
+-- 1) Attempt to load a global fruit data table from a ModuleScript:
+local fruitData = nil
+do
+    local possibleNames = { "FruitData", "CropRegistry", "CropsData" }
+    for _, name in ipairs(possibleNames) do
+        local mod = Replicated:FindFirstChild(name)
+            or (Replicated:FindFirstChild("Modules") and Replicated.Modules:FindFirstChild(name))
+        if mod and mod:IsA("ModuleScript") then
+            success, fruitData = pcall(require, mod)
+            if success and type(fruitData) == "table" then
+                break
+            else
+                fruitData = nil
+            end
+        end
+    end
+end
+
+-- 2) Build the UI
+local gui = Instance.new("ScreenGui")
+gui.Name = "FruitInfoGui"
+gui.Parent = player:WaitForChild("PlayerGui")
+gui.ResetOnSpawn = false
+
+local label = Instance.new("TextLabel")
+label.Size               = UDim2.new(0, 200, 0, 50)
+label.BackgroundColor3   = Color3.fromRGB(0, 0, 0)
+label.BackgroundTransparency = 0.4
+label.TextColor3         = Color3.new(1, 1, 1)
+label.Font               = Enum.Font.GothamBold
+label.TextSize           = 18
+label.TextWrapped        = true
+label.Visible            = false
+label.Parent             = gui
+
+-- 3) Helper: get info for a given Model
+local function getFruitInfo(model)
+    local info = {}
+
+    -- a) Try global data table
+    if fruitData then
+        local entry = fruitData[model.Name]
+        if type(entry) == "table" then
+            info.Price  = entry.Price
+            info.Weight = entry.Weight
+            return info
+        end
+    end
+
+    -- b) Fallback to Attributes
+    if model:GetAttribute("Price") then
+        info.Price = model:GetAttribute("Price")
+    elseif model:FindFirstChild("Price") and model.Price:IsA("NumberValue") then
+        info.Price = model.Price.Value
+    end
+
+    if model:GetAttribute("WeightKg") then
+        info.Weight = model:GetAttribute("WeightKg")
+    elseif model:FindFirstChild("Weight") and model.Weight:IsA("NumberValue") then
+        info.Weight = model.Weight.Value
+    end
+
+    return info
+end
+
+-- 4) Main loop: on each frame, check mouse.Target
+RunService.RenderStepped:Connect(function()
+    local target = mouse.Target
+    if not target then
+        label.Visible = false
+        return
+    end
+
+    -- find the nearest ancestor Model (in case you hover a part inside the fruit)
+    local mdl = target:FindFirstAncestorWhichIsA("Model")
+    if not mdl then
+        label.Visible = false
+        return
+    end
+
+    -- gather the info
+    local info = getFruitInfo(mdl)
+    if not info or (not info.Price and not info.Weight) then
+        label.Visible = false
+        return
+    end
+
+    -- display
+    label.Visible = true
+    label.Text = string.format(
+        "%s\n💰 Price: %s\n⚖️ Weight: %s kg",
+        mdl.Name,
+        info.Price  and tostring(info.Price)  or "N/A",
+        info.Weight and tostring(info.Weight) or "N/A"
+    )
+    label.Position = UDim2.new(0, mouse.X + 12, 0, mouse.Y + 12)
+end)
